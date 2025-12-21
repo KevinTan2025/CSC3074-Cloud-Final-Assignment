@@ -35,10 +35,34 @@ router.get('/:id', async (req, res) => {
 // POST /api/rooms - Create a room (Admin only)
 router.post('/', verifyToken, isAdmin, async (req, res) => {
   try {
-    const { room_number, type, price_per_night, description, features } = req.body;
+    const { type, price_per_night, description, features } = req.body;
+
+    // Auto-generate room number logic
+    // Find the highest room number currently in the database
+    const lastRoom = await Room.findOne({
+      order: [['id', 'DESC']]
+    });
+
+    let nextRoomNumber = 101; // Default start
+    if (lastRoom && lastRoom.room_number) {
+        // Assuming room_number is numeric or ends in number. 
+        // Simple logic: Try to parse int and add 1. 
+        // If your room numbers are complex (e.g. "A-101"), this needs more logic.
+        // For now, let's assume simple integer strings like "101", "102".
+        const lastNum = parseInt(lastRoom.room_number, 10);
+        if (!isNaN(lastNum)) {
+            nextRoomNumber = lastNum + 1;
+        }
+    }
+
+    // Double check if it exists (though unlikely with this logic unless race condition)
+    const existingRoom = await Room.findOne({ where: { room_number: nextRoomNumber.toString() } });
+    if (existingRoom) {
+        return res.status(409).json({ message: `Room number ${nextRoomNumber} already exists. Please try again.` });
+    }
     
     const newRoom = await Room.create({
-      room_number,
+      room_number: nextRoomNumber.toString(),
       type,
       price_per_night,
       description,
@@ -48,6 +72,10 @@ router.post('/', verifyToken, isAdmin, async (req, res) => {
     res.status(201).json(newRoom);
   } catch (error) {
     console.error(error);
+    // Handle Sequelize Unique Constraint Error specifically
+    if (error.name === 'SequelizeUniqueConstraintError') {
+        return res.status(409).json({ message: 'Room number already exists' });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 });
