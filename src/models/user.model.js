@@ -1,0 +1,37 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
+
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: true
+    }
+  },
+  password_hash: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  full_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  role: {
+    type: DataTypes.ENUM('customer', 'admin'),
+    defaultValue: 'customer'
+  }
+}, {
+  tableName: 'users',
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: false // We only specified created_at in the plan, but Sequelize usually adds updatedAt. I'll disable it to match plan or keep it. Let's keep it simple and match plan mostly.
+});
+
+module.exports = User;
