@@ -1,7 +1,53 @@
 const express = require('express');
 const router = express.Router();
-const { Room, RoomImage } = require('../models');
+const { Room, RoomImage, Booking } = require('../models');
 const { verifyToken, isAdmin } = require('../middleware/auth.middleware');
+const { Op } = require('sequelize');
+
+// GET /api/rooms/search - Search available rooms
+router.get('/search', async (req, res) => {
+  try {
+    const { check_in, check_out, type } = req.query;
+
+    if (!check_in || !check_out) {
+      return res.status(400).json({ message: 'Please provide check_in and check_out dates' });
+    }
+
+    // 1. Find booked room IDs in the given range
+    const bookedRooms = await Booking.findAll({
+      attributes: ['room_id'],
+      where: {
+        status: { [Op.ne]: 'cancelled' },
+        [Op.and]: [
+          { check_in_date: { [Op.lt]: check_out } },
+          { check_out_date: { [Op.gt]: check_in } }
+        ]
+      }
+    });
+
+    const bookedRoomIds = bookedRooms.map(b => b.room_id);
+
+    // 2. Find rooms that are NOT in the booked list
+    const whereClause = {
+      id: { [Op.notIn]: bookedRoomIds },
+      status: 'available' // Only show rooms that are not in maintenance
+    };
+
+    if (type) {
+      whereClause.type = type;
+    }
+
+    const availableRooms = await Room.findAll({
+      where: whereClause,
+      include: [{ model: RoomImage }]
+    });
+
+    res.json(availableRooms);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // GET /api/rooms - Get all rooms (Public)
 router.get('/', async (req, res) => {
