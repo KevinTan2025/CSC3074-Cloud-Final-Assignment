@@ -18,10 +18,12 @@
   },
   "homepage": "https://github.com/KevinTan2025/CSC3074-Cloud-Final-Assignment#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.956.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
     "mysql2": "^3.16.0",
     "sequelize": "^6.37.7"
   },

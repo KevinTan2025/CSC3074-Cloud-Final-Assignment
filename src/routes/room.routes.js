@@ -3,6 +3,8 @@ const router = express.Router();
 const { Room, RoomImage, Booking } = require('../models');
 const { verifyToken, isAdmin } = require('../middleware/auth.middleware');
 const { Op } = require('sequelize');
+const upload = require('../middleware/upload.middleware');
+const { uploadFile, deleteFile } = require('../services/s3.service');
 
 // GET /api/rooms/search - Search available rooms
 router.get('/search', async (req, res) => {
@@ -162,6 +164,64 @@ router.delete('/:id', verifyToken, isAdmin, async (req, res) => {
 
     await room.destroy();
     res.json({ message: 'Room deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/rooms/:id/images - Upload images for a room (Admin only)
+router.post('/:id/images', verifyToken, isAdmin, upload.array('images', 5), async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const room = await Room.findByPk(roomId);
+    
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded' });
+    }
+
+    const uploadedImages = [];
+
+    for (const file of req.files) {
+      const imageUrl = await uploadFile(file);
+      
+      const newImage = await RoomImage.create({
+        room_id: roomId,
+        image_url: imageUrl,
+        is_primary: false // Default to false, can be updated later
+      });
+      
+      uploadedImages.push(newImage);
+    }
+
+    res.status(201).json({ message: 'Images uploaded successfully', images: uploadedImages });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error during upload' });
+  }
+});
+
+// DELETE /api/rooms/images/:imageId - Delete a specific image (Admin only)
+router.delete('/images/:imageId', verifyToken, isAdmin, async (req, res) => {
+  try {
+    const imageId = req.params.imageId;
+    const image = await RoomImage.findByPk(imageId);
+
+    if (!image) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
+
+    // Delete from S3
+    await deleteFile(image.image_url);
+
+    // Delete from DB
+    await image.destroy();
+
+    res.json({ message: 'Image deleted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

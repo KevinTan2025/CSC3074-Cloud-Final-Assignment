@@ -20,6 +20,10 @@ async function initialize() {
     const { initDB } = require('../models');
     await initDB();
 
+    // 3. Seed Dummy Data
+    const seedData = require('./seed');
+    await seedData();
+
     console.log('Initialization complete.');
     process.exit(0);
   } catch (err) {
