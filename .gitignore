@@ -1,3 +1,6 @@
+# Kevin's Git Ignore
+/planning/*
+
 # Logs
 logs
 *.log
@@ -67,8 +70,6 @@ web_modules/
 
 # dotenv environment variable files
 .env
-.env.*
-!.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
