@@ -1,6 +1,58 @@
 document.addEventListener('DOMContentLoaded', () => {
     updateAuthUI();
+    loadFeaturedRooms();
 });
+
+async function loadFeaturedRooms() {
+    const container = document.getElementById('featuredRooms');
+    if (!container) return;
+
+    try {
+        const response = await fetch('/api/rooms');
+        const rooms = await response.json();
+
+        if (rooms.length === 0) {
+            container.innerHTML = '<div class="col-12 text-center"><p>No rooms available at the moment.</p></div>';
+            return;
+        }
+
+        // Display first 3 rooms as featured
+        const featuredRooms = rooms.slice(0, 3);
+        
+        container.innerHTML = featuredRooms.map(room => {
+            const imageUrl = room.RoomImages && room.RoomImages.length > 0 
+                ? room.RoomImages[0].image_url 
+                : 'https://via.placeholder.com/400x300?text=No+Image';
+
+            return `
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <img src="${imageUrl}" class="card-img-top" alt="${room.type}" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <h5 class="card-title">${room.type} Room</h5>
+                            <p class="card-text text-muted">${room.description.substring(0, 100)}...</p>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <span class="h5 mb-0 text-primary">$${room.price_per_night}/night</span>
+                                <a href="/room-details.html?id=${room.id}" class="btn btn-outline-primary">View Details</a>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white border-top-0">
+                            <small class="text-muted">
+                                <i class="bi bi-people"></i> ${room.type === 'Single' ? '1 Person' : '2 People'}
+                                <span class="mx-2">|</span>
+                                <i class="bi bi-wifi"></i> Free Wifi
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error loading rooms:', error);
+        container.innerHTML = '<div class="col-12 text-center text-danger"><p>Failed to load rooms.</p></div>';
+    }
+}
 
 function updateAuthUI() {
     const authNav = document.getElementById('authNav');
