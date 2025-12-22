@@ -24,6 +24,7 @@
             margin-bottom: 2rem;
         }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
 
@@ -40,7 +41,13 @@
                 <label for="password" class="form-label">Password</label>
                 <input type="password" class="form-control" id="password" required>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Login</button>
+            
+            <!-- Cloudflare Turnstile Widget -->
+            <div class="mb-3 d-flex justify-content-center">
+                <div class="cf-turnstile" data-sitekey="1x00000000000000000000AA" data-callback="onTurnstileSuccess"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100" id="loginBtn" disabled>Login</button>
         </form>
         
         <div class="mt-3 text-center">
@@ -53,6 +60,12 @@
         <small>Copyright 2025, Tan Kok Feng & Wong Wen Ru</small>
     </footer>
 
+    <script>
+        // Enable button when Turnstile is solved
+        function onTurnstileSuccess(token) {
+            document.getElementById('loginBtn').disabled = false;
+        }
+    </script>
     <script src="/js/auth.js"></script>
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -60,8 +73,15 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const alertBox = document.getElementById('alertMessage');
+            const turnstileToken = turnstile.getResponse();
 
-            const result = await auth.login(email, password);
+            if (!turnstileToken) {
+                alertBox.textContent = 'Please complete the security check.';
+                alertBox.classList.remove('d-none');
+                return;
+            }
+
+            const result = await auth.login(email, password, turnstileToken);
 
             if (result.success) {
                 window.location.href = '/';

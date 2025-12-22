@@ -2,14 +2,14 @@ const API_URL = '/api';
 
 const auth = {
     // Login function
-    login: async (email, password) => {
+    login: async (email, password, turnstileToken) => {
         try {
             const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ email, password, turnstileToken })
             });
 
             const data = await response.json();
@@ -29,14 +29,14 @@ const auth = {
     },
 
     // Register function
-    register: async (fullName, email, password) => {
+    register: async (fullName, email, password, turnstileToken) => {
         try {
             const response = await fetch(`${API_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ full_name: fullName, email, password })
+                body: JSON.stringify({ full_name: fullName, email, password, turnstileToken })
             });
 
             const data = await response.json();

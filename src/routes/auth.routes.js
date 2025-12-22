@@ -3,11 +3,40 @@ const router = express.Router();
 const { User } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
+
+async function verifyTurnstile(token) {
+    try {
+        console.log('Verifying Turnstile Token:', token);
+        console.log('Using Secret Key:', process.env.TURNSTILE_SECRET_KEY);
+
+        const formData = new URLSearchParams();
+        formData.append('secret', process.env.TURNSTILE_SECRET_KEY);
+        formData.append('response', token);
+
+        const response = await axios.post('https://challenges.cloudflare.com/turnstile/v0/siteverify', formData);
+        
+        console.log('Cloudflare Response:', response.data);
+
+        if (!response.data.success) {
+            console.error('Turnstile verification failed:', response.data);
+        }
+        
+        return response.data.success;
+    } catch (error) {
+        console.error('Turnstile verification error:', error);
+        return false;
+    }
+}
 
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, full_name } = req.body;
+    const { email, password, full_name, turnstileToken } = req.body;
+
+    if (!await verifyTurnstile(turnstileToken)) {
+        return res.status(400).json({ message: 'Security check failed' });
+    }
     
     // Check if user exists
     const existingUser = await User.findOne({ where: { email } });
@@ -36,7 +65,11 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, turnstileToken } = req.body;
+
+    if (!await verifyTurnstile(turnstileToken)) {
+        return res.status(400).json({ message: 'Security check failed' });
+    }
 
     // Find user
     const user = await User.findOne({ where: { email } });
