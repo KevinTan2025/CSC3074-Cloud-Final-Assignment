@@ -4,6 +4,7 @@ const authRoutes = require("./routes/auth.routes");
 const roomRoutes = require("./routes/room.routes");
 const bookingRoutes = require("./routes/bookings.routes");
 const userRoutes = require("./routes/users.routes");
+const chatRoutes = require("./routes/chat.routes");
 
 const app = express();
 
@@ -19,5 +20,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/chat", chatRoutes);
 
 module.exports = app;
