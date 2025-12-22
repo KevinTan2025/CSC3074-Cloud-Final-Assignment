@@ -7,13 +7,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Set default dates
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    document.getElementById('checkIn').valueAsDate = today;
-    document.getElementById('checkOut').valueAsDate = tomorrow;
-
     await loadRoomDetails(roomId);
     setupBookingForm(roomId);
 });
@@ -67,6 +60,9 @@ async function loadRoomDetails(id) {
         // Show content
         document.getElementById('loadingSpinner').classList.add('d-none');
         document.getElementById('roomContent').classList.remove('d-none');
+
+        // Initialize Date Pickers with Booked Dates
+        initDatePickers(room.Bookings || []);
 
     } catch (error) {
         console.error(error);
@@ -203,4 +199,33 @@ function setupBookingForm(roomId) {
         alertBox.textContent = msg;
         alertBox.classList.remove('d-none');
     }
+}
+
+function initDatePickers(bookings) {
+    // Convert bookings to disabled ranges
+    const disabledDates = bookings.map(b => ({
+        from: b.check_in_date,
+        to: b.check_out_date
+    }));
+
+    const checkInPicker = flatpickr("#checkIn", {
+        minDate: "today",
+        dateFormat: "Y-m-d",
+        disable: disabledDates,
+        onChange: function(selectedDates, dateStr, instance) {
+            // Update check-out min date to be after check-in
+            if (selectedDates.length > 0) {
+                const nextDay = new Date(selectedDates[0]);
+                nextDay.setDate(nextDay.getDate() + 1);
+                checkOutPicker.set('minDate', nextDay);
+                checkOutPicker.open();
+            }
+        }
+    });
+
+    const checkOutPicker = flatpickr("#checkOut", {
+        minDate: new Date().fp_incr(1),
+        dateFormat: "Y-m-d",
+        disable: disabledDates
+    });
 }

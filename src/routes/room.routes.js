@@ -95,7 +95,18 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const room = await Room.findByPk(req.params.id, {
-      include: [{ model: RoomImage }]
+      include: [
+        { model: RoomImage },
+        { 
+          model: Booking,
+          attributes: ['check_in_date', 'check_out_date', 'status'],
+          where: {
+            status: { [Op.ne]: 'cancelled' },
+            check_out_date: { [Op.gte]: new Date() } // Only future/current bookings
+          },
+          required: false
+        }
+      ]
     });
     if (!room) {
       return res.status(404).json({ message: 'Room not found' });
