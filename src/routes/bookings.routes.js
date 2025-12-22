@@ -103,6 +103,33 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
+// PUT /api/bookings/:id/cancel - Cancel own booking (User)
+router.put('/:id/cancel', verifyToken, async (req, res) => {
+  try {
+    const booking = await Booking.findByPk(req.params.id);
+    
+    if (!booking) {
+      return res.status(404).json({ message: 'Booking not found' });
+    }
+
+    // Check if booking belongs to user
+    if (booking.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Optional: Check if cancellation is allowed (e.g. not in the past)
+    // For now, allow any cancellation
+    
+    booking.status = 'cancelled';
+    await booking.save();
+
+    res.json({ message: 'Booking cancelled successfully', booking });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT /api/bookings/:id/status - Update booking status (Admin only)
 router.put('/:id/status', verifyToken, isAdmin, async (req, res) => {
   try {
