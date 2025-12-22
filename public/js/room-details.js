@@ -32,7 +32,17 @@ async function loadRoomDetails(id) {
 
         // Features
         if (room.features) {
-            const features = JSON.parse(room.features);
+            let features = [];
+            let raw = room.features;
+            
+            if (typeof raw === 'string') {
+                try { raw = JSON.parse(raw); } catch(e) {}
+            }
+            
+            if (Array.isArray(raw)) {
+                features = raw;
+            }
+            
             document.getElementById('roomFeatures').innerHTML = features.map(f => 
                 `<span class="badge bg-secondary me-2 mb-2 p-2">${f}</span>`
             ).join('');

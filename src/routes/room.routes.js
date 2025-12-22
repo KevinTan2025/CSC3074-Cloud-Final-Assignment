@@ -53,9 +53,12 @@ router.get('/search', async (req, res) => {
 
     // 2. Find rooms that are NOT in the booked list
     const whereClause = {
-      id: { [Op.notIn]: bookedRoomIds },
       status: 'available' // Only show rooms that are not in maintenance
     };
+
+    if (bookedRoomIds.length > 0) {
+      whereClause.id = { [Op.notIn]: bookedRoomIds };
+    }
 
     if (type) {
       whereClause.type = type;

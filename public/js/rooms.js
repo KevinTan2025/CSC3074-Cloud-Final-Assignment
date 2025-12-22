@@ -81,9 +81,22 @@ async function loadRooms(filters = {}) {
                             <p class="card-text text-muted small">${room.description.substring(0, 100)}...</p>
                             
                             <div class="mb-3">
-                                ${room.features ? JSON.parse(room.features).map(f => 
-                                    `<span class="badge bg-light text-dark border me-1">${f}</span>`
-                                ).join('') : ''}
+                                ${(function() {
+                                    let features = [];
+                                    let raw = room.features;
+                                    
+                                    if (typeof raw === 'string') {
+                                        try { raw = JSON.parse(raw); } catch(e) {}
+                                    }
+                                    
+                                    if (Array.isArray(raw)) {
+                                        features = raw;
+                                    }
+                                    
+                                    return features.map(f => 
+                                        `<span class="badge bg-light text-dark border me-1">${f}</span>`
+                                    ).join('');
+                                })()}
                             </div>
 
                             <div class="d-flex justify-content-between align-items-center mt-auto">
@@ -98,6 +111,6 @@ async function loadRooms(filters = {}) {
 
     } catch (error) {
         console.error('Error loading rooms:', error);
-        container.innerHTML = '<div class="col-12 text-center text-danger"><p>Failed to load rooms.</p></div>';
+        container.innerHTML = `<div class="col-12 text-center text-danger"><p>Failed to load rooms: ${error.message}</p></div>`;
     }
 }
