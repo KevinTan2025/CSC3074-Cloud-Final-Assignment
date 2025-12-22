@@ -1,6 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
+const fs = require('fs');
+const path = require('path');
+
+// Load System Prompt
+const promptPath = path.join(__dirname, '../config/system_prompt.txt');
+let systemPromptTemplate = '';
+
+try {
+    systemPromptTemplate = fs.readFileSync(promptPath, 'utf8');
+} catch (err) {
+    console.error('Error reading system prompt:', err);
+    systemPromptTemplate = 'You are a helpful assistant for BookingKaka.';
+}
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -12,15 +25,13 @@ router.post('/message', async (req, res) => {
     try {
         const { message, history, userName } = req.body;
 
+        // Prepare System Prompt
+        const currentUserName = userName || 'Guest';
+        const systemPrompt = systemPromptTemplate.replace('{userName}', currentUserName);
+
         // Construct messages array with system prompt and history
         const messages = [
-            { 
-                role: "system", 
-                content: `You are a helpful virtual assistant for BookingKaka, a hotel booking platform. 
-                Your goal is to assist users with their inquiries about rooms, bookings, and services.
-                The user's name is ${userName || 'Guest'}.
-                Be polite, professional, and concise.` 
-            },
+            { role: "system", content: systemPrompt },
             ...(history || []),
             { role: "user", content: message }
         ];

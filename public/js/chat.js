@@ -119,7 +119,14 @@ function initChatWidget() {
     function addMessage(text, sender) {
         const div = document.createElement('div');
         div.className = `message ${sender}`;
-        div.textContent = text;
+        
+        if (sender === 'bot') {
+            // Use marked to parse Markdown for bot messages
+            div.innerHTML = marked.parse(text);
+        } else {
+            div.textContent = text;
+        }
+        
         messagesContainer.insertBefore(div, typingIndicator);
         scrollToBottom();
     }
