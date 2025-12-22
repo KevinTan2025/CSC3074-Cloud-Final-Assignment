@@ -47,7 +47,10 @@ async function loadBookings() {
                     <td>${checkIn}</td>
                     <td>${checkOut}</td>
                     <td>$${booking.total_price}</td>
-                    <td>${statusBadge}</td>
+                    <td>
+                        ${statusBadge}
+                        ${booking.notes ? `<br><small class="text-muted" style="font-size: 0.75rem;" title="${booking.notes}">View Payment Info</small>` : ''}
+                    </td>
                     <td>
                         ${booking.status !== 'cancelled' ? 
                             `<button class="btn btn-sm btn-outline-danger" onclick="openCancelModal(${booking.id})">Cancel</button>` 

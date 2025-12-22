@@ -68,6 +68,8 @@ function setupBookingForm(roomId) {
     const form = document.getElementById('bookingForm');
     const loginPrompt = document.getElementById('loginPrompt');
     const alertBox = document.getElementById('bookingAlert');
+    const paymentForm = document.getElementById('paymentForm');
+    let paymentModal;
 
     // Check auth status
     if (!auth.isLoggedIn()) {
@@ -76,11 +78,38 @@ function setupBookingForm(roomId) {
         return;
     }
 
-    form.addEventListener('submit', async (e) => {
+    // --- Input Formatting Logic ---
+    const ccInput = document.getElementById('cc-number');
+    const expInput = document.getElementById('cc-expiration');
+
+    // Format Credit Card: xxxx xxxx xxxx xxxx
+    ccInput.addEventListener('input', (e) => {
+        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        let formattedValue = '';
+        for (let i = 0; i < value.length; i++) {
+            if (i > 0 && i % 4 === 0) {
+                formattedValue += ' ';
+            }
+            formattedValue += value[i];
+        }
+        e.target.value = formattedValue;
+    });
+
+    // Format Expiration: MM/YY
+    expInput.addEventListener('input', (e) => {
+        let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (value.length >= 2) {
+            value = value.substring(0, 2) + '/' + value.substring(2, 4);
+        }
+        e.target.value = value;
+    });
+    // -----------------------------
+
+    // 1. Handle "Book Now" click -> Show Payment Modal
+    form.addEventListener('submit', (e) => {
         e.preventDefault();
         const checkIn = document.getElementById('checkIn').value;
         const checkOut = document.getElementById('checkOut').value;
-        const btn = document.getElementById('bookBtn');
 
         // Basic validation
         if (new Date(checkIn) >= new Date(checkOut)) {
@@ -88,9 +117,41 @@ function setupBookingForm(roomId) {
             return;
         }
 
+        // Calculate total
+        const pricePerNight = parseFloat(document.getElementById('roomPrice').textContent);
+        const nights = (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24);
+        const total = pricePerNight * nights;
+
+        // Update Modal
+        document.getElementById('modalTotal').textContent = total.toFixed(2);
+        
+        // Show Modal
+        paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+        paymentModal.show();
+    });
+
+    // 2. Handle "Pay & Confirm" click -> Send API Request
+    paymentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const checkIn = document.getElementById('checkIn').value;
+        const checkOut = document.getElementById('checkOut').value;
+        const btn = document.getElementById('confirmPaymentBtn');
+        
+        // Collect simulated payment info
+        const address = document.getElementById('address').value;
+        const city = document.getElementById('city').value;
+        const zip = document.getElementById('zip').value;
+        const ccLast4 = document.getElementById('cc-number').value.slice(-4);
+
+        const paymentNote = `Billing Address: ${address}, ${city} ${zip}. Paid via Credit Card ending in ${ccLast4}.`;
+
         try {
             btn.disabled = true;
-            btn.textContent = 'Processing...';
+            btn.textContent = 'Processing Payment...';
+
+            // Simulate network delay for payment processing
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
             const response = await fetch('/api/bookings', {
                 method: 'POST',
@@ -101,27 +162,29 @@ function setupBookingForm(roomId) {
                 body: JSON.stringify({
                     room_id: roomId,
                     check_in_date: checkIn,
-                    check_out_date: checkOut
+                    check_out_date: checkOut,
+                    notes: paymentNote // Store payment info in notes
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                showAlert('Booking successful! Redirecting...', 'success');
+                paymentModal.hide();
+                showAlert('Payment successful! Booking confirmed. Redirecting...', 'success');
                 setTimeout(() => {
-                    window.location.href = '/my-bookings.html'; // We'll create this later
+                    window.location.href = '/my-bookings.html';
                 }, 2000);
             } else {
-                showAlert(data.message || 'Booking failed', 'danger');
+                alert('Booking failed: ' + (data.message || 'Unknown error'));
                 btn.disabled = false;
-                btn.textContent = 'Book Now';
+                btn.textContent = 'Pay & Confirm Booking';
             }
         } catch (error) {
             console.error(error);
-            showAlert('Network error', 'danger');
+            alert('Network error during payment processing');
             btn.disabled = false;
-            btn.textContent = 'Book Now';
+            btn.textContent = 'Pay & Confirm Booking';
         }
     });
 
