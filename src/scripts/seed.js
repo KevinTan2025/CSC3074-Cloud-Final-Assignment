@@ -13,9 +13,10 @@ const seedData = async () => {
     console.log('Seeding dummy data...');
 
     // 1. Create Users
-    const salt = await bcrypt.genSalt(10);
-    const adminPassword = await bcrypt.hash('admin123', salt);
-    const userPassword = await bcrypt.hash('user123', salt);
+    // Let bcrypt generate a new salt for each password automatically
+    // Changing default passwords to 'password123' as requested
+    const adminPassword = await bcrypt.hash('password123', 10);
+    const userPassword = await bcrypt.hash('password123', 10);
 
     const admin = await User.create({
       email: 'admin@hotel.com',

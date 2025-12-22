@@ -7,6 +7,10 @@ const userRoutes = require("./routes/users.routes");
 
 const app = express();
 
+// Serve static files from public directory
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../public')));
+
 app.use(express.json());
 
 // Routes
