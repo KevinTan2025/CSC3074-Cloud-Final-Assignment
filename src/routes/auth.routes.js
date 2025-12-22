@@ -5,6 +5,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 
+// Get Turnstile Config
+router.get('/config', (req, res) => {
+    res.json({ siteKey: process.env.TURNSTILE_SITE_KEY });
+});
+
 async function verifyTurnstile(token) {
     try {
         console.log('Verifying Turnstile Token:', token);
