@@ -4,7 +4,29 @@ const { Room, RoomImage, Booking } = require('../models');
 const { verifyToken, isAdmin } = require('../middleware/auth.middleware');
 const { Op } = require('sequelize');
 const upload = require('../middleware/upload.middleware');
-const { uploadFile, deleteFile } = require('../services/s3.service');
+const { uploadFile, deleteFile, getFileSignedUrl } = require('../services/s3.service');
+
+// Helper to process rooms and sign image URLs
+const processRoomImages = async (rooms) => {
+  // Handle single room object or array of rooms
+  const isArray = Array.isArray(rooms);
+  const roomList = isArray ? rooms : [rooms];
+
+  const processedRooms = await Promise.all(roomList.map(async (room) => {
+    // Convert Sequelize instance to plain object to modify properties
+    const roomData = room.toJSON();
+    
+    if (roomData.RoomImages && roomData.RoomImages.length > 0) {
+      roomData.RoomImages = await Promise.all(roomData.RoomImages.map(async (img) => {
+        img.image_url = await getFileSignedUrl(img.image_url);
+        return img;
+      }));
+    }
+    return roomData;
+  }));
+
+  return isArray ? processedRooms : processedRooms[0];
+};
 
 // GET /api/rooms/search - Search available rooms
 router.get('/search', async (req, res) => {
@@ -44,7 +66,8 @@ router.get('/search', async (req, res) => {
       include: [{ model: RoomImage }]
     });
 
-    res.json(availableRooms);
+    const roomsWithSignedUrls = await processRoomImages(availableRooms);
+    res.json(roomsWithSignedUrls);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -57,7 +80,8 @@ router.get('/', async (req, res) => {
     const rooms = await Room.findAll({
       include: [{ model: RoomImage }] // Include images
     });
-    res.json(rooms);
+    const roomsWithSignedUrls = await processRoomImages(rooms);
+    res.json(roomsWithSignedUrls);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -73,7 +97,8 @@ router.get('/:id', async (req, res) => {
     if (!room) {
       return res.status(404).json({ message: 'Room not found' });
     }
-    res.json(room);
+    const roomWithSignedUrls = await processRoomImages(room);
+    res.json(roomWithSignedUrls);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

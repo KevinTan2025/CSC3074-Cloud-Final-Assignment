@@ -1,4 +1,5 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const crypto = require('crypto');
 
 const s3Client = new S3Client({
@@ -19,29 +20,38 @@ const uploadFile = async (file) => {
     Key: fileName,
     Body: file.buffer,
     ContentType: file.mimetype,
-    // ACL: 'public-read' // Optional: depending on bucket settings. 
-    // If bucket is private but has policy for public read, this isn't needed.
-    // If bucket is strictly private, we might need presigned URLs, but for this project public read is likely intended.
   };
 
   await s3Client.send(new PutObjectCommand(uploadParams));
 
-  // Construct the public URL
-  // Format: https://<bucket-name>.s3.<region>.amazonaws.com/<key>
-  const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-  
-  return fileUrl;
+  // Return the Key (filename) instead of the full URL
+  return fileName;
 };
 
-const deleteFile = async (fileUrl) => {
-  // Extract key from URL
-  // URL: https://<bucket-name>.s3.<region>.amazonaws.com/<key>
-  const urlParts = fileUrl.split('/');
-  const key = urlParts[urlParts.length - 1];
+const getFileSignedUrl = async (key) => {
+  // If it's a full URL (e.g. placeholder), return it as is
+  if (key.startsWith('http')) return key;
+
+  const command = new GetObjectCommand({
+    Bucket: process.env.AWS_BUCKET_NAME,
+    Key: key,
+  });
+
+  // Generate a signed URL valid for 1 hour (3600 seconds)
+  return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+};
+
+const deleteFile = async (key) => {
+  // If it's a full URL, try to extract the key, otherwise assume it is the key
+  let fileKey = key;
+  if (key.startsWith('http')) {
+      const urlParts = key.split('/');
+      fileKey = urlParts[urlParts.length - 1];
+  }
 
   const deleteParams = {
     Bucket: process.env.AWS_BUCKET_NAME,
-    Key: key
+    Key: fileKey
   };
 
   await s3Client.send(new DeleteObjectCommand(deleteParams));
@@ -49,5 +59,6 @@ const deleteFile = async (fileUrl) => {
 
 module.exports = {
   uploadFile,
-  deleteFile
+  deleteFile,
+  getFileSignedUrl
 };
