@@ -11,7 +11,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
+    <!-- Navbar: site-wide navigation (Home, Rooms, user auth injected by JS) -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="/">BookingKaKa.store</a>
@@ -35,11 +35,11 @@
     </nav>
 
     <div class="container">
-        <!-- Search Filter -->
+        <!-- Search Filter: provides availability search inputs -->
         <div class="card mb-4 shadow-sm">
             <div class="card-body">
                 <h5 class="card-title mb-3">Find Your Perfect Room</h5>
-                <form id="searchForm" class="row g-3">
+                <form id="searchForm" class="row g-3" role="search">
                     <div class="col-md-3">
                         <label for="checkIn" class="form-label">Check-in Date</label>
                         <input type="date" class="form-control" id="checkIn" required>
@@ -64,8 +64,8 @@
             </div>
         </div>
 
-        <!-- Rooms Grid -->
-        <div class="row" id="roomsContainer">
+        <!-- Rooms Grid: populated by /js/rooms.js with cards showing room details and actions -->
+        <div class="row" id="roomsContainer" aria-live="polite">
             <div class="col-12 text-center">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Loading...</span>

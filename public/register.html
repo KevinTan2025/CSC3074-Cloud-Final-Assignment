@@ -27,9 +27,11 @@
 </head>
 <body>
 
-    <div class="register-card">
+    <!-- Registration card centered on the page -->
+    <div class="register-card" role="main">
         <h3 class="text-center mb-4">Register</h3>
-        <div id="alertMessage" class="alert d-none"></div>
+        <!-- alertMessage shows success or error messages to the user -->
+        <div id="alertMessage" class="alert d-none" role="alert" aria-live="polite"></div>
         
         <form id="registerForm">
             <div class="mb-3">
@@ -45,8 +47,8 @@
                 <input type="password" class="form-control" id="password" required>
             </div>
 
-            <!-- Cloudflare Turnstile Widget -->
-            <div id="turnstile-container" class="mb-3 d-flex justify-content-center"></div>
+            <!-- Cloudflare Turnstile Widget: site key is fetched from server and widget rendered client-side -->
+            <div id="turnstile-container" class="mb-3 d-flex justify-content-center" aria-hidden="false"></div>
 
             <button type="submit" class="btn btn-success w-100" id="registerBtn" disabled>Register</button>
         </form>
@@ -62,21 +64,25 @@
     </footer>
 
     <script>
-        // Enable button when Turnstile is solved
+        // Turnstile success callback - enables the register button
         function onTurnstileSuccess(token) {
-            document.getElementById('registerBtn').disabled = false;
+            const btn = document.getElementById('registerBtn');
+            if (btn) btn.disabled = false;
         }
 
-        // Fetch Site Key and Render Widget
+        // Fetch site key and render Turnstile widget securely.
         window.onloadTurnstileCallback = async function() {
             try {
                 const response = await fetch('/api/auth/config');
+                if (!response.ok) { console.error('Failed to fetch Turnstile config'); return; }
                 const data = await response.json();
-                
-                turnstile.render('#turnstile-container', {
-                    sitekey: data.siteKey,
-                    callback: onTurnstileSuccess
-                });
+
+                if (window.turnstile && typeof window.turnstile.render === 'function') {
+                    turnstile.render('#turnstile-container', {
+                        sitekey: data.siteKey,
+                        callback: onTurnstileSuccess
+                    });
+                }
             } catch (error) {
                 console.error('Error loading Turnstile config:', error);
             }
@@ -85,36 +91,61 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
     <script src="/js/auth.js"></script>
     <script>
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const fullName = document.getElementById('fullName').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+        // Registration form handler with defensive checks and user feedback.
+        (function() {
+            const form = document.getElementById('registerForm');
             const alertBox = document.getElementById('alertMessage');
-            const turnstileToken = turnstile.getResponse();
+            const btn = document.getElementById('registerBtn');
 
-            if (!turnstileToken) {
-                alertBox.className = 'alert alert-danger';
-                alertBox.textContent = 'Please complete the security check.';
-                alertBox.classList.remove('d-none');
-                return;
-            }
+            if (!form) return;
 
-            const result = await auth.register(fullName, email, password, turnstileToken);
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
 
-            if (result.success) {
-                alertBox.className = 'alert alert-success';
-                alertBox.textContent = 'Registration successful! Redirecting to login...';
-                alertBox.classList.remove('d-none');
-                setTimeout(() => {
-                    window.location.href = '/login.html';
-                }, 2000);
-            } else {
-                alertBox.className = 'alert alert-danger';
-                alertBox.textContent = result.message;
-                alertBox.classList.remove('d-none');
-            }
-        });
+                const fullName = document.getElementById('fullName').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                // Defensive: ensure turnstile exists before attempting to read token.
+                let turnstileToken = null;
+                try {
+                    if (window.turnstile && typeof turnstile.getResponse === 'function') {
+                        turnstileToken = turnstile.getResponse();
+                    }
+                } catch (err) {
+                    console.warn('Turnstile unavailable:', err);
+                }
+
+                if (!turnstileToken) {
+                    alertBox.className = 'alert alert-danger';
+                    alertBox.textContent = 'Please complete the security check.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                if (btn) btn.disabled = true;
+
+                try {
+                    const result = await auth.register(fullName, email, password, turnstileToken);
+                    if (result && result.success) {
+                        alertBox.className = 'alert alert-success';
+                        alertBox.textContent = 'Registration successful! Redirecting to login...';
+                        alertBox.classList.remove('d-none');
+                        setTimeout(() => { window.location.href = '/login.html'; }, 2000);
+                    } else {
+                        alertBox.className = 'alert alert-danger';
+                        alertBox.textContent = (result && result.message) ? result.message : 'Registration failed';
+                        alertBox.classList.remove('d-none');
+                    }
+                } catch (err) {
+                    console.error('Registration error:', err);
+                    alertBox.className = 'alert alert-danger';
+                    alertBox.textContent = 'Network error. Please try again.';
+                    alertBox.classList.remove('d-none');
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            });
+
+        })();
     </script>
-</body>
-</html>
