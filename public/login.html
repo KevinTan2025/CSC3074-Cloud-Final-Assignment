@@ -27,9 +27,11 @@
 </head>
 <body>
 
-    <div class="login-card">
+    <!-- Centered login card used for authentication -->
+    <div class="login-card" role="main">
         <h3 class="text-center mb-4">Login</h3>
-        <div id="alertMessage" class="alert alert-danger d-none"></div>
+        <!-- alertMessage displays errors from authentication attempts. Initially hidden. -->
+        <div id="alertMessage" class="alert alert-danger d-none" role="alert" aria-live="polite"></div>
         
         <form id="loginForm">
             <div class="mb-3">
@@ -41,8 +43,8 @@
                 <input type="password" class="form-control" id="password" required>
             </div>
             
-            <!-- Cloudflare Turnstile Widget -->
-            <div id="turnstile-container" class="mb-3 d-flex justify-content-center"></div>
+            <!-- Cloudflare Turnstile Widget: the widget is rendered by the external script. -->
+                <div id="turnstile-container" class="mb-3 d-flex justify-content-center" aria-hidden="false"></div>
 
             <button type="submit" class="btn btn-primary w-100" id="loginBtn" disabled>Login</button>
         </form>
@@ -58,21 +60,30 @@
     </footer>
 
     <script>
-        // Enable button when Turnstile is solved
+        // Called by Turnstile when the challenge is solved. Enables the login button.
         function onTurnstileSuccess(token) {
-            document.getElementById('loginBtn').disabled = false;
+            const btn = document.getElementById('loginBtn');
+            if (btn) btn.disabled = false;
         }
 
-        // Fetch Site Key and Render Widget
+        // Fetch the site key from the server and render the Turnstile widget.
+        // Keeps the site key out of the client build and allows different environments.
         window.onloadTurnstileCallback = async function() {
             try {
                 const response = await fetch('/api/auth/config');
+                if (!response.ok) {
+                    console.error('Failed to load Turnstile config');
+                    return;
+                }
                 const data = await response.json();
-                
-                turnstile.render('#turnstile-container', {
-                    sitekey: data.siteKey,
-                    callback: onTurnstileSuccess
-                });
+
+                // Render widget; the external Turnstile script will call onTurnstileSuccess on success.
+                if (window.turnstile && typeof window.turnstile.render === 'function') {
+                    turnstile.render('#turnstile-container', {
+                        sitekey: data.siteKey,
+                        callback: onTurnstileSuccess
+                    });
+                }
             } catch (error) {
                 console.error('Error loading Turnstile config:', error);
             }
@@ -81,28 +92,56 @@
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
     <script src="/js/auth.js"></script>
     <script>
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+        // Login form submit handler. Uses `auth.login` from /js/auth.js.
+        (function() {
+            const form = document.getElementById('loginForm');
             const alertBox = document.getElementById('alertMessage');
-            const turnstileToken = turnstile.getResponse();
+            const loginBtn = document.getElementById('loginBtn');
 
-            if (!turnstileToken) {
-                alertBox.textContent = 'Please complete the security check.';
-                alertBox.classList.remove('d-none');
-                return;
-            }
+            if (!form) return;
 
-            const result = await auth.login(email, password, turnstileToken);
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
 
-            if (result.success) {
-                window.location.href = '/';
-            } else {
-                alertBox.textContent = result.message;
-                alertBox.classList.remove('d-none');
-            }
-        });
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                // Safely check if the Turnstile API is present and get the response token.
+                let turnstileToken = null;
+                try {
+                    if (window.turnstile && typeof turnstile.getResponse === 'function') {
+                        turnstileToken = turnstile.getResponse();
+                    }
+                } catch (err) {
+                    console.warn('Turnstile unavailable:', err);
+                }
+
+                if (!turnstileToken) {
+                    alertBox.textContent = 'Please complete the security check.';
+                    alertBox.classList.remove('d-none');
+                    return;
+                }
+
+                // Disable the button to prevent double submits until the request finishes.
+                if (loginBtn) loginBtn.disabled = true;
+
+                try {
+                    const result = await auth.login(email, password, turnstileToken);
+                    if (result && result.success) {
+                        window.location.href = '/';
+                    } else {
+                        alertBox.textContent = (result && result.message) ? result.message : 'Login failed';
+                        alertBox.classList.remove('d-none');
+                    }
+                } catch (err) {
+                    console.error('Login error:', err);
+                    alertBox.textContent = 'Network error. Please try again.';
+                    alertBox.classList.remove('d-none');
+                } finally {
+                    if (loginBtn) loginBtn.disabled = false;
+                }
+            });
+        })();
     </script>
 </body>
 </html>
