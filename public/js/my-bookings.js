@@ -1,26 +1,52 @@
+// my-bookings.js
+// - Loads current user's bookings and allows cancellation
+
 document.addEventListener('DOMContentLoaded', () => {
-    if (!auth.isLoggedIn()) {
+    // Defensive: ensure `auth` exists and provides isLoggedIn
+    const hasAuth = typeof auth === 'object' && typeof auth.isLoggedIn === 'function';
+    if (!hasAuth) {
+        console.warn('auth helper not available; redirecting to login.');
         window.location.href = '/login.html';
         return;
     }
+
+    try {
+        if (!auth.isLoggedIn()) {
+            window.location.href = '/login.html';
+            return;
+        }
+    } catch (e) {
+        console.warn('auth.isLoggedIn threw an error, redirecting to login.', e);
+        window.location.href = '/login.html';
+        return;
+    }
+
     loadBookings();
 });
 
+// Fetch and render bookings into the table body
 async function loadBookings() {
     const tbody = document.getElementById('bookingsTableBody');
-    
-    try {
-        const response = await fetch('/api/bookings/my-bookings', {
-            headers: {
-                'Authorization': `Bearer ${auth.getToken()}`
-            }
-        });
+    if (!tbody) {
+        console.warn('Bookings table body not found; skipping render.');
+        return;
+    }
 
-        if (!response.ok) throw new Error('Failed to fetch bookings');
+    try {
+        const headers = {};
+        if (typeof auth === 'object' && typeof auth.getToken === 'function') {
+            const token = auth.getToken();
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch('/api/bookings/my-bookings', { headers });
+        if (!response.ok) {
+            console.error('Failed to fetch bookings, status:', response.status);
+            throw new Error('Failed to fetch bookings');
+        }
 
         const bookings = await response.json();
-
-        if (bookings.length === 0) {
+        if (!Array.isArray(bookings) || bookings.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="7" class="text-center py-4">
@@ -33,28 +59,37 @@ async function loadBookings() {
         }
 
         tbody.innerHTML = bookings.map(booking => {
-            const checkIn = new Date(booking.check_in_date).toLocaleDateString();
-            const checkOut = new Date(booking.check_out_date).toLocaleDateString();
-            const statusBadge = getStatusBadge(booking.status);
-            
+            // Defensive access to nested objects
+            const id = booking && booking.id != null ? booking.id : '';
+            const room = booking && booking.Room ? booking.Room : {};
+            const roomType = room.type || '';
+            const roomNumber = room.room_number != null ? room.room_number : '';
+
+            const checkIn = safeFormatDate(booking && booking.check_in_date);
+            const checkOut = safeFormatDate(booking && booking.check_out_date);
+
+            const status = booking && booking.status ? String(booking.status) : '';
+            const statusBadge = getStatusBadge(status);
+            const total = booking && booking.total_price != null ? String(booking.total_price) : '0.00';
+
+            const notesHtml = booking && booking.notes ? `<br><small class="text-muted" style="font-size: 0.75rem;" title="${escapeHtml(booking.notes)}">View Payment Info</small>` : '';
+
             return `
                 <tr>
-                    <td>#${booking.id}</td>
+                    <td>#${escapeHtml(id)}</td>
                     <td>
-                        <strong>${booking.Room.type}</strong><br>
-                        <small class="text-muted">Room ${booking.Room.room_number}</small>
+                        <strong>${escapeHtml(roomType)}</strong><br>
+                        <small class="text-muted">Room ${escapeHtml(roomNumber)}</small>
                     </td>
-                    <td>${checkIn}</td>
-                    <td>${checkOut}</td>
-                    <td>$${booking.total_price}</td>
+                    <td>${escapeHtml(checkIn)}</td>
+                    <td>${escapeHtml(checkOut)}</td>
+                    <td>$${escapeHtml(total)}</td>
                     <td>
                         ${statusBadge}
-                        ${booking.notes ? `<br><small class="text-muted" style="font-size: 0.75rem;" title="${booking.notes}">View Payment Info</small>` : ''}
+                        ${notesHtml}
                     </td>
                     <td>
-                        ${booking.status !== 'cancelled' ? 
-                            `<button class="btn btn-sm btn-outline-danger" onclick="openCancelModal(${booking.id})">Cancel</button>` 
-                            : '-'}
+                        ${status !== 'cancelled' ? `<button class="btn btn-sm btn-outline-danger" onclick="openCancelModal(${escapeJs(id)})">Cancel</button>` : '-'}
                     </td>
                 </tr>
             `;
@@ -72,44 +107,86 @@ async function loadBookings() {
     }
 }
 
+// Helpers
+function safeFormatDate(value) {
+    try {
+        const d = new Date(value);
+        if (isNaN(d)) return '-';
+        return d.toLocaleDateString();
+    } catch (e) {
+        return '-';
+    }
+}
+
 function getStatusBadge(status) {
+    const s = String(status || '').toLowerCase();
     const colors = {
         'confirmed': 'success',
         'pending': 'warning',
         'cancelled': 'danger',
         'completed': 'secondary'
     };
-    const color = colors[status] || 'primary';
-    return `<span class="badge bg-${color}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+    const color = colors[s] || 'primary';
+    const label = s ? (s.charAt(0).toUpperCase() + s.slice(1)) : 'Unknown';
+    return `<span class="badge bg-${color}">${escapeHtml(label)}</span>`;
+}
+
+// Simple HTML escape for small values inserted into the table
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// When injecting into an onclick handler, make sure numeric ids are safe. For non-numeric use quotes.
+function escapeJs(val) {
+    if (typeof val === 'number') return val;
+    return `'${String(val).replace(/'/g, "\\'")}'`;
 }
 
 let bookingIdToCancel = null;
-const cancelModal = new bootstrap.Modal(document.getElementById('cancelModal'));
+let cancelModal = null;
+const cancelModalEl = document.getElementById('cancelModal');
+if (cancelModalEl && window.bootstrap && typeof bootstrap.Modal === 'function') {
+    cancelModal = new bootstrap.Modal(cancelModalEl);
+}
 
 function openCancelModal(id) {
     bookingIdToCancel = id;
-    cancelModal.show();
+    if (cancelModal && typeof cancelModal.show === 'function') cancelModal.show();
 }
 
-document.getElementById('confirmCancelBtn').addEventListener('click', async () => {
-    if (!bookingIdToCancel) return;
+const confirmBtn = document.getElementById('confirmCancelBtn');
+if (confirmBtn) {
+    confirmBtn.addEventListener('click', async () => {
+        if (!bookingIdToCancel) return;
 
-    try {
-        const response = await fetch(`/api/bookings/${bookingIdToCancel}/cancel`, {
-            method: 'PUT', // Assuming cancel is a status update, usually PUT or PATCH
-            headers: {
-                'Authorization': `Bearer ${auth.getToken()}`
+        try {
+            const headers = {};
+            if (typeof auth === 'object' && typeof auth.getToken === 'function') {
+                const token = auth.getToken();
+                if (token) headers['Authorization'] = `Bearer ${token}`;
             }
-        });
 
-        if (response.ok) {
-            cancelModal.hide();
-            loadBookings(); // Reload table
-        } else {
-            alert('Failed to cancel booking');
+            const response = await fetch(`/api/bookings/${bookingIdToCancel}/cancel`, {
+                method: 'PUT', // or PATCH depending on API
+                headers
+            });
+
+            if (response.ok) {
+                if (cancelModal && typeof cancelModal.hide === 'function') cancelModal.hide();
+                // Refresh bookings list
+                loadBookings();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                alert('Failed to cancel booking: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Network error');
         }
-    } catch (error) {
-        console.error(error);
-        alert('Network error');
-    }
-});
+    });
+}
