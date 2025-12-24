@@ -10,7 +10,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
+    <!-- Navbar: top navigation and auth area injected by JS -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4" style="position: relative; z-index: 1030;">
         <div class="container">
             <a class="navbar-brand" href="/">BookingKaKa.store</a>
@@ -34,12 +34,14 @@
     </nav>
 
     <div class="container mb-5">
-        <div id="loadingSpinner" class="text-center py-5">
+        <!-- Loading spinner shown while room details are being fetched -->
+        <div id="loadingSpinner" class="text-center py-5" aria-live="polite">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </div>
 
+        <!-- roomContent holds the populated room details once loaded -->
         <div id="roomContent" class="row d-none">
             <!-- Left Column: Images & Info -->
             <div class="col-md-8">
@@ -57,8 +59,9 @@
                     </button>
                 </div>
 
+                <!-- Title, features and description are filled by /js/room-details.js -->
                 <h2 id="roomTitle" class="mb-3"></h2>
-                <div id="roomFeatures" class="mb-4">
+                <div id="roomFeatures" class="mb-4" aria-live="polite">
                     <!-- Features injected here -->
                 </div>
                 
@@ -72,8 +75,10 @@
                     <div class="card-body">
                         <h3 class="card-title text-primary mb-4">$<span id="roomPrice"></span><small class="text-muted fs-6">/night</small></h3>
                         
-                        <div id="bookingAlert" class="alert d-none"></div>
+                    <!-- bookingAlert is used to show booking errors or confirmations -->
+                    <div id="bookingAlert" class="alert d-none" role="alert" aria-live="polite"></div>
 
+                        <!-- bookingForm uses flatpickr inputs for date selection; booking handled client-side then sent to server -->
                         <form id="bookingForm">
                             <div class="mb-3">
                                 <label for="checkIn" class="form-label">Check-in Date</label>
@@ -89,6 +94,7 @@
                             </div>
                         </form>
                         
+                        <!-- loginPrompt shown when user needs to login before booking -->
                         <div id="loginPrompt" class="d-none mt-3 text-center">
                             <p class="text-muted">Please login to book this room.</p>
                             <a href="/login.html" class="btn btn-outline-primary w-100">Login</a>
