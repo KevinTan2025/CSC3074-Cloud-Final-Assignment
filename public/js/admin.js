@@ -1,42 +1,50 @@
+// Initialize dashboard once DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     checkAdminAuth();
     loadRooms();
     loadBookings();
 
-    // Handle Image Upload
-    document.getElementById('uploadImageForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const roomId = document.getElementById('imageRoomId').value;
-        const fileInput = document.getElementById('newImages');
-        const files = fileInput.files;
+    // Handle Image Upload: attach submit handler for image uploads
+    const uploadForm = document.getElementById('uploadImageForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const roomId = document.getElementById('imageRoomId').value;
+            const fileInput = document.getElementById('newImages');
+            const files = fileInput.files;
 
-        if (files.length === 0) return;
+            if (!files || files.length === 0) return; // nothing to do
 
-        const formData = new FormData();
-        for (let i = 0; i < files.length; i++) {
-            formData.append('images', files[i]);
-        }
-
-        try {
-            const response = await fetch(`/api/rooms/${roomId}/images`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${auth.getToken()}`
-                },
-                body: formData
-            });
-
-            if (response.ok) {
-                fileInput.value = ''; // Clear input
-                openImagesModal(roomId); // Reload images
-            } else {
-                alert('Failed to upload images');
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('images', files[i]);
             }
-        } catch (error) {
-            console.error(error);
-            alert('Error uploading images');
-        }
-    });
+
+            try {
+                const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/images`, {
+                    method: 'POST',
+                    headers: {
+                        // Let browser set Content-Type for FormData
+                        'Authorization': `Bearer ${auth.getToken()}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    fileInput.value = ''; // Clear file input after successful upload
+                    openImagesModal(roomId); // Refresh images list in modal
+                } else {
+                    // Try to show server-provided message if present
+                    let msg = 'Failed to upload images';
+                    try { const data = await response.json(); if (data && data.message) msg = data.message; } catch (_) {}
+                    alert(msg);
+                }
+            } catch (error) {
+                console.error('Image upload error:', error);
+                alert('Error uploading images');
+            }
+        });
+    }
 });
 
 function checkAdminAuth() {
@@ -59,22 +67,27 @@ async function loadRooms() {
     const tbody = document.getElementById('roomsTableBody');
     try {
         const response = await fetch('/api/rooms');
-        const rooms = await response.json();
+        // guard: ensure we received JSON and an array
+        const rooms = response.ok ? await response.json() : [];
 
-        tbody.innerHTML = rooms.map(room => `
+        // Safely build HTML rows, minimizing direct injection of unexpected HTML
+        tbody.innerHTML = (Array.isArray(rooms) ? rooms : []).map(room => {
+            const statusBadge = room.status === 'available' ? 'success' : 'secondary';
+            // Use textContent via template strings but keep markup simple
+            return `
             <tr>
-                <td>${room.id}</td>
-                <td>${room.room_number}</td>
-                <td>${room.type}</td>
-                <td>$${room.price_per_night}</td>
-                <td><span class="badge bg-${room.status === 'available' ? 'success' : 'secondary'}">${room.status}</span></td>
+                <td>${String(room.id)}</td>
+                <td>${String(room.room_number ?? '')}</td>
+                <td>${String(room.type ?? '')}</td>
+                <td>$${String(room.price_per_night ?? '')}</td>
+                <td><span class="badge bg-${statusBadge}">${String(room.status ?? '')}</span></td>
                 <td>
-                    <button class="btn btn-sm btn-info text-white" onclick="openImagesModal(${room.id})"><i class="bi bi-images"></i></button>
-                    <button class="btn btn-sm btn-primary" onclick="openRoomModal(${room.id})"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteRoom(${room.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-info text-white" onclick="openImagesModal(${room.id})" title="Manage images"><i class="bi bi-images"></i></button>
+                    <button class="btn btn-sm btn-primary" onclick="openRoomModal(${room.id})" title="Edit room"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteRoom(${room.id})" title="Delete room"><i class="bi bi-trash"></i></button>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     } catch (error) {
         console.error(error);
     }
@@ -91,8 +104,12 @@ async function openRoomModal(roomId = null) {
         title.textContent = 'Edit Room';
         document.getElementById('roomId').value = roomId;
         
-        // Fetch room details
-        const response = await fetch(`/api/rooms/${roomId}`);
+        // Fetch room details; handle non-OK responses
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
+        if (!response.ok) {
+            alert('Failed to fetch room details');
+            return;
+        }
         const room = await response.json();
         
         document.getElementById('roomType').value = room.type;
@@ -131,9 +148,10 @@ async function saveRoom() {
     
     const features = featuresStr.split(',').map(f => f.trim()).filter(f => f);
 
+    // Prepare payload. Convert features to JSON string because backend expects a JSON string in current API.
     const data = {
         type,
-        price_per_night: price,
+        price_per_night: Number(price) || 0,
         description,
         status,
         features: JSON.stringify(features)
@@ -170,8 +188,9 @@ async function saveRoom() {
             roomModal.hide();
             loadRooms();
         } else {
-            const err = await response.json();
-            alert(err.message || 'Failed to save room');
+            let errMsg = 'Failed to save room';
+            try { const err = await response.json(); if (err && err.message) errMsg = err.message; } catch (_) {}
+            alert(errMsg);
         }
     } catch (error) {
         console.error(error);
@@ -183,7 +202,7 @@ async function deleteRoom(id) {
     if (!confirm('Are you sure you want to delete this room?')) return;
 
     try {
-        const response = await fetch(`/api/rooms/${id}`, {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(id)}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${auth.getToken()}`
@@ -202,6 +221,7 @@ async function deleteRoom(id) {
 
 // --- Images Management ---
 
+// Open modal and list images for a room
 async function openImagesModal(roomId) {
     document.getElementById('imageRoomId').value = roomId;
     const container = document.getElementById('currentImagesList');
@@ -210,7 +230,10 @@ async function openImagesModal(roomId) {
     imagesModal.show();
 
     try {
-        const response = await fetch(`/api/rooms/${roomId}`);
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch room images');
+        }
         const room = await response.json();
         
         if (!room.RoomImages || room.RoomImages.length === 0) {
@@ -218,10 +241,10 @@ async function openImagesModal(roomId) {
             return;
         }
 
-        container.innerHTML = room.RoomImages.map(img => `
+        container.innerHTML = (room.RoomImages || []).map(img => `
             <div class="col-md-4 mb-3">
                 <div class="card">
-                    <img src="${img.image_url}" class="card-img-top" style="height: 150px; object-fit: cover;">
+                    <img src="${String(img.image_url)}" class="card-img-top" style="height: 150px; object-fit: cover;" alt="Room image">
                     <div class="card-body p-2 text-center">
                         <button class="btn btn-sm btn-danger w-100" onclick="deleteImage(${img.id}, ${roomId})">Delete</button>
                     </div>
@@ -239,7 +262,7 @@ async function deleteImage(imageId, roomId) {
     if (!confirm('Delete this image?')) return;
 
     try {
-        const response = await fetch(`/api/rooms/images/${imageId}`, {
+        const response = await fetch(`/api/rooms/images/${encodeURIComponent(imageId)}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${auth.getToken()}`
@@ -264,25 +287,32 @@ async function loadBookings() {
         const response = await fetch('/api/bookings', {
             headers: { 'Authorization': `Bearer ${auth.getToken()}` }
         });
-        const bookings = await response.json();
+        const bookings = response.ok ? await response.json() : [];
 
-        tbody.innerHTML = bookings.map(booking => `
+        tbody.innerHTML = (Array.isArray(bookings) ? bookings : []).map(booking => {
+            const userName = booking.User ? booking.User.full_name : 'Unknown';
+            const roomNumber = booking.Room ? booking.Room.room_number : 'N/A';
+            const checkIn = booking.check_in_date ? new Date(booking.check_in_date).toLocaleDateString() : '';
+            const checkOut = booking.check_out_date ? new Date(booking.check_out_date).toLocaleDateString() : '';
+            const disabled = status => booking.status === status ? 'disabled' : '';
+
+            return `
             <tr>
-                <td>${booking.id}</td>
-                <td>${booking.User ? booking.User.full_name : 'Unknown'}</td>
-                <td>Room ${booking.Room ? booking.Room.room_number : 'N/A'}</td>
-                <td>${new Date(booking.check_in_date).toLocaleDateString()} - ${new Date(booking.check_out_date).toLocaleDateString()}</td>
-                <td>$${booking.total_price}</td>
-                <td><span class="badge bg-${getStatusColor(booking.status)}">${booking.status}</span></td>
+                <td>${String(booking.id)}</td>
+                <td>${String(userName)}</td>
+                <td>Room ${String(roomNumber)}</td>
+                <td>${checkIn} - ${checkOut}</td>
+                <td>$${String(booking.total_price ?? '')}</td>
+                <td><span class="badge bg-${getStatusColor(booking.status)}">${String(booking.status)}</span></td>
                 <td>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-success" onclick="updateBookingStatus(${booking.id}, 'confirmed')" ${booking.status === 'confirmed' ? 'disabled' : ''}>Confirm</button>
-                        <button class="btn btn-warning" onclick="updateBookingStatus(${booking.id}, 'completed')" ${booking.status === 'completed' ? 'disabled' : ''}>Complete</button>
-                        <button class="btn btn-danger" onclick="updateBookingStatus(${booking.id}, 'cancelled')" ${booking.status === 'cancelled' ? 'disabled' : ''}>Cancel</button>
+                        <button class="btn btn-success" onclick="updateBookingStatus(${booking.id}, 'confirmed')" ${disabled('confirmed')}>Confirm</button>
+                        <button class="btn btn-warning" onclick="updateBookingStatus(${booking.id}, 'completed')" ${disabled('completed')}>Complete</button>
+                        <button class="btn btn-danger" onclick="updateBookingStatus(${booking.id}, 'cancelled')" ${disabled('cancelled')}>Cancel</button>
                     </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
     } catch (error) {
         console.error(error);
     }

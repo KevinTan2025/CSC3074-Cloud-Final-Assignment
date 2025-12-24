@@ -9,7 +9,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
+    <!-- Navbar: top navigation for admin actions (site link, logout, admin name) -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">BookingKaKa Admin</a>
@@ -22,8 +22,10 @@
                         <a class="nav-link" href="/">View Site</a>
                     </li>
                 </ul>
-                <div class="d-flex">
-                    <span class="navbar-text me-3" id="adminName"></span>
+                <div class="d-flex" aria-live="polite">
+                    <!-- adminName is populated by JS after auth check -->
+                    <span class="navbar-text me-3" id="adminName" title="Administrator name"></span>
+                    <!-- Use auth.logout() defined in /js/auth.js to clear session -->
                     <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">Logout</button>
                 </div>
             </div>
@@ -32,7 +34,7 @@
 
     <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar -->
+            <!-- Sidebar: quick navigation for admin sections -->
             <div class="col-md-2 mb-3">
                 <div class="list-group" id="adminTabs" role="tablist">
                     <a class="list-group-item list-group-item-action active" id="rooms-tab" data-bs-toggle="list" href="#rooms" role="tab">Manage Rooms</a>
@@ -44,7 +46,7 @@
             <div class="col-md-10">
                 <div class="tab-content" id="nav-tabContent">
                     
-                    <!-- Rooms Tab -->
+                    <!-- Rooms Tab: table lists rooms and actions (edit, images, delete) -->
                     <div class="tab-pane fade show active" id="rooms" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2>Rooms</h2>
@@ -53,7 +55,7 @@
                             </button>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-striped table-hover">
+                            <table class="table table-striped table-hover" aria-describedby="rooms">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
@@ -65,13 +67,13 @@
                                     </tr>
                                 </thead>
                                 <tbody id="roomsTableBody">
-                                    <!-- Rooms loaded here -->
+                                    <!-- Rooms loaded dynamically by /js/admin.js using fetch to /api/rooms -->
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Bookings Tab -->
+                    <!-- Bookings Tab: admin can update booking status from here -->
                     <div class="tab-pane fade" id="bookings" role="tabpanel">
                         <h2 class="mb-3">Bookings</h2>
                         <div class="table-responsive">
@@ -88,7 +90,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="bookingsTableBody">
-                                    <!-- Bookings loaded here -->
+                                    <!-- Bookings loaded dynamically by /js/admin.js -->
                                 </tbody>
                             </table>
                         </div>
